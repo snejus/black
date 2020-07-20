@@ -99,21 +99,28 @@ def _initialize_black_env(upgrade=False):
   if first_install:
     print('Pro-tip: to upgrade Black in the future, use the :BlackUpgrade command and restart Vim.\n')
   if virtualenv_site_packages not in sys.path:
-    sys.path.append(virtualenv_site_packages)
+    sys.path.insert(0, virtualenv_site_packages)
   return True
 
 if _initialize_black_env():
     import sys
     import time
     from io import StringIO
-    from isort import main, api
+    sort = True
+    try:
+        from isort import main, api
+    except ImportError:
+        sort = False
+        print("You may be using isort < v5. Using black only")
     import black
-    config_overrides = {
-        "multi_line_output": 3,
-        "include_trailing_comma": True,
-        "known_third_party": "model_utils",
-        "known_first_party": "interaction,stubs",
-    }
+
+    if sort:
+        config_overrides = {
+            "multi_line_output": 3,
+            "include_trailing_comma": True,
+            "known_third_party": "model_utils",
+            "known_first_party": "interaction,stubs",
+        }
 
 def Black():
     code = vim.current.buffer
@@ -127,14 +134,16 @@ def Black():
         if filename.endswith(".pyi"):
             line_length = 130
             is_pyi = True
-        config_overrides["line_length"] = line_length
-        happyisort = None
-        try:
-            sorted_ = api.sort_code_string("\n".join(code) + "\n", main.Config(**config_overrides))
-            code[:] = sorted_.split(sep="\n")
-            happyisort = f'[isort] {time.time() - start:.4f}s '
-        except Exception as exc:
-            raise exc("[isort] unexpectedly failed to isort. You'll have to do it yourself: " + str(exc))
+
+        if sort:
+            config_overrides["line_length"] = line_length
+            happyisort = None
+            try:
+                sorted_ = api.sort_code_string("\n".join(code) + "\n", main.Config(**config_overrides))
+                code[:] = sorted_.split(sep="\n")
+                happyisort = f'[isort] {time.time() - start:.4f}s '
+            except Exception as exc:
+                raise exc("[isort] unexpectedly failed to isort. You'll have to do it yourself: " + str(exc))
 
         ### BLACK time
         start = time.time()
@@ -148,7 +157,11 @@ def Black():
         try:
             new_buffer_str = black.format_file_contents(buffer_str, fast=fast, mode=mode)
         except black.NothingChanged:
-            print(happyisort + f'[black] {time.time() - start:.4f}s')
+            message = f'[black] {time.time() - start:.4f}s'
+            if sort:
+                print(happyisort + message)
+            else:
+                print(message)
         except Exception as exc:
             raise exc("[black] unexpectedly failed to blacken: " + str(exc))
         else:
