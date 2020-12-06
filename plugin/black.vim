@@ -125,61 +125,58 @@ if _initialize_black_env():
 def Black():
     code = vim.current.buffer
     filename = code.name
-    if not main.is_python_file(filename):
-        print("[black / isort] Non-python files aren't supported.")
-    else:
-        start = time.time()
-        line_length = 90
-        is_pyi = False
-        if filename.endswith(".pyi"):
-            line_length = 130
-            is_pyi = True
+    start = time.time()
+    line_length = 90
+    is_pyi = False
+    if filename.endswith(".pyi"):
+        line_length = 130
+        is_pyi = True
 
-        if sort:
-            config_overrides["line_length"] = line_length
-            happyisort = None
-            try:
-                sorted_ = api.sort_code_string("\n".join(code) + "\n", main.Config(**config_overrides))
-                code[:] = sorted_.split(sep="\n")
-                happyisort = f'[isort] {time.time() - start:.4f}s '
-            except Exception as exc:
-                raise exc("[isort] unexpectedly failed to isort. You'll have to do it yourself: " + str(exc))
-
-        ### BLACK time
-        start = time.time()
-        buffer_str = '\n'.join(code) + '\n'
-        fast = bool(int(vim.eval("g:black_fast")))
-        mode = black.FileMode(
-            line_length=line_length,
-            string_normalization=not bool(int(vim.eval("g:black_skip_string_normalization"))),
-            is_pyi=is_pyi,
-        )
+    if sort:
+        config_overrides["line_length"] = line_length
+        happyisort = None
         try:
-            new_buffer_str = black.format_file_contents(buffer_str, fast=fast, mode=mode)
-        except black.NothingChanged:
-            message = f'[black] {time.time() - start:.4f}s'
-            if sort:
-                print(happyisort + message)
-            else:
-                print(message)
+            sorted_ = api.sort_code_string("\n".join(code) + "\n", main.Config(**config_overrides))
+            code[:] = sorted_.split(sep="\n")
+            happyisort = f'[isort] {time.time() - start:.4f}s '
         except Exception as exc:
-            raise exc("[black] unexpectedly failed to blacken: " + str(exc))
+            raise exc("[isort] unexpectedly failed to isort. You'll have to do it yourself: " + str(exc))
+
+    ### BLACK time
+    start = time.time()
+    buffer_str = '\n'.join(code) + '\n'
+    fast = bool(int(vim.eval("g:black_fast")))
+    mode = black.FileMode(
+        line_length=line_length,
+        string_normalization=not bool(int(vim.eval("g:black_skip_string_normalization"))),
+        is_pyi=is_pyi,
+    )
+    try:
+        new_buffer_str = black.format_file_contents(buffer_str, fast=fast, mode=mode)
+    except black.NothingChanged:
+        message = f'[black] {time.time() - start:.4f}s'
+        if sort:
+            print(happyisort + message)
         else:
-            current_buffer = vim.current.window.buffer
-            cursors = []
-            for i, tabpage in enumerate(vim.tabpages):
-                if tabpage.valid:
-                    for j, window in enumerate(tabpage.windows):
-                        if window.valid and window.buffer == current_buffer:
-                            cursors.append((i, j, window.cursor))
-            vim.current.buffer[:] = new_buffer_str.split('\n')[:-1]
-            for i, j, cursor in cursors:
-                window = vim.tabpages[i].windows[j]
-                try:
-                    window.cursor = cursor
-                except vim.error:
-                    window.cursor = (len(window.buffer), 0)
-            print(happyisort + f'[black] {time.time() - start:.4f}s')
+            print(message)
+    except Exception as exc:
+        raise exc("[black] unexpectedly failed to blacken: " + str(exc))
+    else:
+        current_buffer = vim.current.window.buffer
+        cursors = []
+        for i, tabpage in enumerate(vim.tabpages):
+            if tabpage.valid:
+                for j, window in enumerate(tabpage.windows):
+                    if window.valid and window.buffer == current_buffer:
+                        cursors.append((i, j, window.cursor))
+        vim.current.buffer[:] = new_buffer_str.split('\n')[:-1]
+        for i, j, cursor in cursors:
+            window = vim.tabpages[i].windows[j]
+            try:
+                window.cursor = cursor
+            except vim.error:
+                window.cursor = (len(window.buffer), 0)
+        print(happyisort + f'[black] {time.time() - start:.4f}s')
 
 
 def BlackUpgrade():
